@@ -126,8 +126,8 @@ pub fn build_from_docker(
             format!("{}/linuxkit", blobs_path),
             &mut file_output,
             artifacts_path()?,
-            cert,
-            priv_key,
+            Some(cert),
+            Some(priv_key),
         )
         .map_err(|err| {
             new_nitro_cli_failure!(
