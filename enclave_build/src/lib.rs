@@ -96,6 +96,55 @@ impl<'a> Docker2Eif<'a> {
         })
     }
 
+    pub fn new2(
+        docker_image: String,
+        init_path: String,
+        nsm_path: String,
+        kernel_img_path: String,
+        cmdline: String,
+        linuxkit_path: String,
+        output: &'a mut File,
+        artifacts_prefix: String,
+        certificate: Option<Vec<u8>>,
+        key: Option<Vec<u8>>,
+    ) -> Result<Self, Docker2EifError> {
+        let docker = DockerUtil::new(docker_image.clone());
+
+        if !Path::new(&init_path).is_file() {
+            return Err(Docker2EifError::InitPathError);
+        } else if !Path::new(&nsm_path).is_file() {
+            return Err(Docker2EifError::NsmPathError);
+        } else if !Path::new(&kernel_img_path).is_file() {
+            return Err(Docker2EifError::KernelPathError);
+        } else if !Path::new(&linuxkit_path).is_file() {
+            return Err(Docker2EifError::LinuxkitPathError);
+        } else if !Path::new(&artifacts_prefix).is_dir() {
+            return Err(Docker2EifError::ArtifactsPrefixError);
+        }
+
+        let sign_info = match (certificate, key) {
+            (None, None) => None,
+            (Some(cert), Some(key)) => Some(SignEnclaveInfo {
+                signing_certificate: cert,
+                private_key: key,
+            }),
+            _ => return Err(Docker2EifError::SignArgsError),
+        };
+
+        Ok(Docker2Eif {
+            docker_image,
+            docker,
+            init_path,
+            nsm_path,
+            kernel_img_path,
+            cmdline,
+            linuxkit_path,
+            output,
+            artifacts_prefix,
+            sign_info,
+        })
+    }
+
     pub fn pull_docker_image(&self) -> Result<(), Docker2EifError> {
         self.docker.pull_image().map_err(|e| {
             eprintln!("Docker error: {:?}", e);

@@ -65,6 +65,8 @@ pub fn build_enclaves(args: BuildEnclavesArgs) -> NitroCliResult<()> {
         &args.output,
         &args.signing_certificate,
         &args.private_key,
+        None,
+        None,
     )
     .map_err(|e| e.add_subaction("Failed to build EIF from docker".to_string()))?;
     Ok(())
@@ -77,6 +79,8 @@ pub fn build_from_docker(
     output_path: &str,
     signing_certificate: &Option<String>,
     private_key: &Option<String>,
+    cert: Option<Vec<u8>>,
+    priv_key: Option<Vec<u8>>,
 ) -> NitroCliResult<(File, BTreeMap<String, String>)> {
     let blobs_path =
         blobs_path().map_err(|e| e.add_subaction("Failed to retrieve blobs path".to_string()))?;
@@ -112,24 +116,44 @@ pub fn build_from_docker(
             .add_info(vec![output_path, "Open"])
         })?;
 
-    let mut docker2eif = enclave_build::Docker2Eif::new(
-        docker_uri.to_string(),
-        format!("{}/init", blobs_path),
-        format!("{}/nsm.ko", blobs_path),
-        format!("{}/bzImage", blobs_path),
-        cmdline.trim().to_string(),
-        format!("{}/linuxkit", blobs_path),
-        &mut file_output,
-        artifacts_path()?,
-        signing_certificate,
-        private_key,
-    )
-    .map_err(|err| {
-        new_nitro_cli_failure!(
-            &format!("Failed to create EIF image: {:?}", err),
-            NitroCliErrorEnum::EifBuildingError
+    let mut docker2eif = match (cert, priv_key) {
+        (Some(cert), Some(key)) => enclave_build::Docker2Eif::new2(
+            docker_uri.to_string(),
+            format!("{}/init", blobs_path),
+            format!("{}/nsm.ko", blobs_path),
+            format!("{}/bzImage", blobs_path),
+            cmdline.trim().to_string(),
+            format!("{}/linuxkit", blobs_path),
+            &mut file_output,
+            artifacts_path()?,
+            cert,
+            priv_key,
         )
-    })?;
+        .map_err(|err| {
+            new_nitro_cli_failure!(
+                &format!("Failed to create EIF image: {:?}", err),
+                NitroCliErrorEnum::EifBuildingError
+            )
+        })?,
+        (_, _) => enclave_build::Docker2Eif::new(
+            docker_uri.to_string(),
+            format!("{}/init", blobs_path),
+            format!("{}/nsm.ko", blobs_path),
+            format!("{}/bzImage", blobs_path),
+            cmdline.trim().to_string(),
+            format!("{}/linuxkit", blobs_path),
+            &mut file_output,
+            artifacts_path()?,
+            signing_certificate,
+            private_key,
+        )
+        .map_err(|err| {
+            new_nitro_cli_failure!(
+                &format!("Failed to create EIF image: {:?}", err),
+                NitroCliErrorEnum::EifBuildingError
+            )
+        })?,
+    };
 
     if let Some(docker_dir) = docker_dir {
         docker2eif
