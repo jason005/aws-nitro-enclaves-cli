@@ -127,7 +127,7 @@ pub fn build_from_docker(
             &mut file_output,
             artifacts_path()?,
             Some(cert),
-            Some(priv_key),
+            Some(key),
         )
         .map_err(|err| {
             new_nitro_cli_failure!(
